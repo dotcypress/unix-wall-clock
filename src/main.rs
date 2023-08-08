@@ -98,14 +98,14 @@ mod app {
     }
 
     #[task(
-        binds = USART2, 
+        binds = USART2,
+        shared = [watch],
         local = [
             uart,
             needle: usize = 0,
             scratch: [u8; 255] = [0; 255],
-        ],
-        shared = [watch])
-    ]
+        ]
+    )]
     fn uart_rx(mut ctx: uart_rx::Context) {
         loop {
             match ctx.local.uart.read() {
@@ -114,8 +114,9 @@ mod app {
                     defmt::error!("UART RX ERROR");
                 }
                 Ok(b'\n') => {
-                    if let Ok(line) = core::str::from_utf8(&ctx.local.scratch[..*ctx.local.needle]) {
-                        if line.contains("ANTENNA OPEN") { 
+                    if let Ok(line) = core::str::from_utf8(&ctx.local.scratch[..*ctx.local.needle])
+                    {
+                        if line.contains("ANTENNA OPEN") {
                             defmt::info!("ANTENNA OPEN");
                         } else if line.contains("ANTENNA OK") {
                             defmt::info!("ANTENNA OK");
@@ -125,20 +126,16 @@ mod app {
                             }
                             // $GNZDA,004101.000,08,08,2023,00,00*4F
                             let mut chunks = line.split(',').skip(1);
-                            let time = parse(
-                                chunks
-                                    .next()
-                                    .unwrap_or("")
-                                    .split('.')
-                                    .next()
-                            );
+                            let time = parse(chunks.next().unwrap_or("").split('.').next());
                             let seconds = time % 100;
                             let minutes = (time / 100) % 100;
-                            let hours =  (time / 10_000) % 100;
+                            let hours = (time / 10_000) % 100;
                             let day = parse(chunks.next());
                             let month = parse(chunks.next());
                             let year = parse(chunks.next());
-                            ctx.shared.watch.lock(|watch| watch.set_utc_time(year, month, day, hours, minutes, seconds));
+                            ctx.shared.watch.lock(|watch| {
+                                watch.set_utc_time(year, month, day, hours, minutes, seconds)
+                            });
                         }
                     }
                     *ctx.local.needle = 0;

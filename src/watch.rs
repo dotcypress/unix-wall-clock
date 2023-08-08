@@ -12,6 +12,12 @@ pub struct Watch {
     ts: u64,
 }
 
+impl Default for Watch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Watch {
     pub fn new() -> Self {
         Self {
@@ -74,7 +80,7 @@ impl Watch {
                     };
                     let digit = val % 10;
                     display.print(9 - pos, DIGITS[digit as usize], brightness);
-                    val = val / 10;
+                    val /= 10;
                 }
             }
         }
