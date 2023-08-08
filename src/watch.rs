@@ -44,9 +44,9 @@ impl Watch {
         match cmd.cmd {
             7 | 70 => self.mode = Mode::DoomsdayClock,
             71 | 69 => self.mode = Mode::UnixClock,
-            67 => self.brightness = self.brightness.saturating_add(8),
-            64 | 13 => self.brightness = self.brightness.saturating_sub(8),
             68 | 21 => self.brightness = 16,
+            64 | 13 => self.brightness = self.brightness.saturating_sub(8),
+            67 => self.brightness = self.brightness.saturating_add(8),
             _ => {}
         }
     }
@@ -67,8 +67,8 @@ impl Watch {
                     let brightness = match self.mode {
                         Mode::UnixClock => self.brightness,
                         Mode::DoomsdayClock => {
-                            let half = self.brightness as usize;
-                            let brightness = half * ((self.frame + pos) % 20) / 10;
+                            let brightness = self.brightness as usize;
+                            let brightness = brightness * ((self.frame + pos) % 20) / 10;
                             brightness as u8
                         }
                     };

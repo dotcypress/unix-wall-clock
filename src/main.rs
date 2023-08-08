@@ -85,7 +85,6 @@ mod app {
             .expect("Failed to init serial port");
         uart.listen(Event::Rxne);
 
-        defmt::info!("let's go!");
         (
             Shared { display, watch },
             Local {
@@ -105,7 +104,8 @@ mod app {
             needle: usize = 0,
             scratch: [u8; 255] = [0; 255],
         ],
-        shared = [watch])]
+        shared = [watch])
+    ]
     fn uart_rx(mut ctx: uart_rx::Context) {
         loop {
             match ctx.local.uart.read() {
