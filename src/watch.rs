@@ -7,7 +7,6 @@ enum Mode {
 }
 pub struct Watch {
     mode: Mode,
-    frame: usize,
     brightness: u8,
     ts: u64,
 }
@@ -24,7 +23,6 @@ impl Watch {
             brightness: 4,
             mode: Mode::UnixClock,
             ts: 0,
-            frame: 0,
         }
     }
 
@@ -43,7 +41,6 @@ impl Watch {
         let leap_days = 1 + (febs / 4) - (febs / 100) + (febs / 400);
         let days = 365 * year_adj + leap_days + month_yday[month as usize - 1] + day - 1 - 2472692;
         self.ts = days * 24 * 60 * 60 + hour * 60 * 60 + minutes * 60 + seconds;
-        self.frame = 0;
     }
 
     pub fn ir_command(&mut self, cmd: NecCommand) {
@@ -51,7 +48,7 @@ impl Watch {
             7 | 70 => self.mode = Mode::DoomsdayClock,
             71 | 69 => self.mode = Mode::UnixClock,
             68 | 21 => self.brightness = 16,
-            64 | 13 => self.brightness = self.brightness.saturating_sub(8),
+            64 | 13 => self.brightness = self.brightness.saturating_sub(8).max(8),
             67 => self.brightness = self.brightness.saturating_add(8),
             _ => {}
         }
@@ -70,20 +67,11 @@ impl Watch {
                     Mode::DoomsdayClock => i32::MAX as u64 - self.ts,
                 };
                 for pos in 0..10 {
-                    let brightness = match self.mode {
-                        Mode::UnixClock => self.brightness,
-                        Mode::DoomsdayClock => {
-                            let brightness = self.brightness as usize;
-                            let brightness = brightness * ((self.frame + pos) % 20) / 10;
-                            brightness as u8
-                        }
-                    };
                     let digit = val % 10;
-                    display.print(9 - pos, DIGITS[digit as usize], brightness);
+                    display.print(9 - pos, DIGITS[digit as usize], self.brightness);
                     val /= 10;
                 }
             }
         }
-        self.frame += 1;
     }
 }

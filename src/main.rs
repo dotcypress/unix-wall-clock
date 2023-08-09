@@ -36,6 +36,7 @@ mod app {
     struct Local {
         ir: Ir,
         animation_timer: Timer<stm32::TIM14>,
+        render_timer: Timer<stm32::TIM17>,
         ir_timer: Timer<stm32::TIM16>,
         uart: Serial<stm32::USART2, BasicConfig>,
     }
@@ -57,6 +58,10 @@ mod app {
         let mut animation_timer = ctx.device.TIM14.timer(&mut rcc);
         animation_timer.start(20.hz());
         animation_timer.listen();
+        
+        let mut render_timer = ctx.device.TIM17.timer(&mut rcc);
+        render_timer.start((20*256).hz());
+        render_timer.listen();
 
         let port_a = ctx.device.GPIOA.split(&mut rcc);
         let port_b = ctx.device.GPIOB.split(&mut rcc);
@@ -65,7 +70,7 @@ mod app {
         let spi = ctx.device.SPI2.spi(
             (port_b.pb8, NoMiso, port_a.pa4),
             hal::spi::MODE_0,
-            10.mhz(),
+            8.mhz(),
             &mut rcc,
         );
         port_a.pa5.into_push_pull_output().set_low().unwrap();
@@ -90,6 +95,7 @@ mod app {
             Local {
                 ir,
                 animation_timer,
+                render_timer,
                 ir_timer,
                 uart,
             },
@@ -116,26 +122,23 @@ mod app {
                 Ok(b'\n') => {
                     if let Ok(line) = core::str::from_utf8(&ctx.local.scratch[..*ctx.local.needle])
                     {
-                        if line.contains("ANTENNA OPEN") {
-                            defmt::info!("ANTENNA OPEN");
-                        } else if line.contains("ANTENNA OK") {
-                            defmt::info!("ANTENNA OK");
-                        } else if line.starts_with("$GNZDA") {
+                        if line.starts_with("$GNZDA") {
                             fn parse(s: Option<&str>) -> u64 {
                                 s.unwrap_or("").parse::<u64>().unwrap_or(0)
                             }
-                            // $GNZDA,004101.000,08,08,2023,00,00*4F
                             let mut chunks = line.split(',').skip(1);
                             let time = parse(chunks.next().unwrap_or("").split('.').next());
-                            let seconds = time % 100;
-                            let minutes = (time / 100) % 100;
-                            let hours = (time / 10_000) % 100;
                             let day = parse(chunks.next());
                             let month = parse(chunks.next());
                             let year = parse(chunks.next());
-                            ctx.shared.watch.lock(|watch| {
-                                watch.set_utc_time(year, month, day, hours, minutes, seconds)
-                            });
+                            if time > 0 && day > 0 && month > 0 && year > 0 {
+                                let seconds = time % 100;
+                                let minutes = (time / 100) % 100;
+                                let hours = (time / 10_000) % 100;
+                                ctx.shared.watch.lock(|watch| {
+                                    watch.set_utc_time(year, month, day, hours, minutes, seconds)
+                                });
+                            }
                         }
                     }
                     *ctx.local.needle = 0;
@@ -156,16 +159,15 @@ mod app {
         ctx.local.ir_timer.clear_irq();
     }
 
-    #[task(binds = TIM14, priority = 2, local = [animation_timer], shared = [display, watch])]
+    #[task(binds = TIM14, priority = 2, local = [animation_timer], shared = [watch, display])]
     fn animate(ctx: animate::Context) {
         (ctx.shared.display, ctx.shared.watch).lock(|display, watch| watch.animate(display));
         ctx.local.animation_timer.clear_irq();
     }
 
-    #[idle(shared = [display])]
-    fn idle(mut ctx: idle::Context) -> ! {
-        loop {
-            ctx.shared.display.lock(|display| display.render());
-        }
+    #[task(binds = TIM17, local = [render_timer], shared = [display])]
+    fn render(mut ctx: render::Context) {
+        ctx.shared.display.lock(|display| display.render());
+        ctx.local.render_timer.clear_irq();
     }
 }
