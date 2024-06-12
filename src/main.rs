@@ -60,7 +60,7 @@ mod app {
         animation_timer.listen();
         
         let mut render_timer = ctx.device.TIM17.timer(&mut rcc);
-        render_timer.start((20*256).hz());
+        render_timer.start(25.khz());
         render_timer.listen();
 
         let port_a = ctx.device.GPIOA.split(&mut rcc);
@@ -165,7 +165,7 @@ mod app {
         ctx.local.animation_timer.clear_irq();
     }
 
-    #[task(binds = TIM17, local = [render_timer], shared = [display])]
+    #[task(binds = TIM17, priority = 3, local = [render_timer], shared = [display])]
     fn render(mut ctx: render::Context) {
         ctx.shared.display.lock(|display| display.render());
         ctx.local.render_timer.clear_irq();
